@@ -12,10 +12,12 @@
 #    $Header: /home/srilm/devel/common/RCS/Makefile.machine.i686-m64,v 1.4 2008/05/21 22:54:18 stolcke Exp stolcke $
 #
 
+   MY_GCC_PATH := "/usr/bin/gcc"
+   MY_GPP_PATH := "/usr/bin/g++"
    # Use the GNU C compiler.
-   GCC_FLAGS = -march=athlon64 -m64 -Wreturn-type -Wimplicit -Wformat
-   CC = $(GCC_PATH)gcc $(GCC_FLAGS) -Wimplicit-int
-   CXX = $(GCC_PATH)g++ $(GCC_FLAGS) -DINSTANTIATE_TEMPLATES
+   GCC_FLAGS = -march=native -m64 -Wreturn-type -Wimplicit -Wformat
+   CC = $(MY_GCC_PATH) $(GCC_FLAGS) 
+   CXX = $(MY_GPP_PATH) $(GCC_FLAGS) -DINSTANTIATE_TEMPLATES
 
    # Optional compilation flags.
    OPTIMIZE_FLAGS = -g -O3 
@@ -49,9 +51,9 @@
    RLD_FLAG = -R
 
    # Tcl support (standard in Linux)
-   TCL_INCLUDE = 
+   NO_TCL=X
+   TCL_INCLUDE =
    TCL_LIBRARY =
-   NO_TCL = 1
 
    # No ranlib
    RANLIB = :
