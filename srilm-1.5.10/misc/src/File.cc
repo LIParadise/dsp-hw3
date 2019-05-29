@@ -30,195 +30,195 @@ const char *wordSeparators = " \t\r\n";
 #define START_BUF_LEN 128
 
 File::File(const char *name, const char *mode, int exitOnError)
-    : fp(0), lineno(0), name(name), exitOnError(exitOnError),
-      buffer((char *)malloc(START_BUF_LEN)), bufLen(START_BUF_LEN),
-      reuseBuffer(false), skipComments(true)
+  : fp(0), lineno(0), name(name), exitOnError(exitOnError),
+  buffer((char *)malloc(START_BUF_LEN)), bufLen(START_BUF_LEN),
+  reuseBuffer(false), skipComments(true)
 {
-    assert(buffer != 0);
+  assert(buffer != 0);
 
-    fp = fopen(name, mode);
+  fp = fopen(name, mode);
 
-    if (fp == 0) {
-	if (exitOnError) {
-	    perror(name);
-	    exit(exitOnError);
-	}
+  if (fp == 0) {
+    if (exitOnError) {
+      perror(name);
+      exit(exitOnError);
     }
+  }
 }
 
 File::File(FILE *fp, int exitOnError)
-    : fp(fp), lineno(0), name(0), exitOnError(exitOnError),
-      buffer((char *)malloc(START_BUF_LEN)), bufLen(START_BUF_LEN),
-      reuseBuffer(false)
+  : fp(fp), lineno(0), name(0), exitOnError(exitOnError),
+  buffer((char *)malloc(START_BUF_LEN)), bufLen(START_BUF_LEN),
+  reuseBuffer(false)
 {
-    assert(buffer != 0);
+  assert(buffer != 0);
 }
 
 File::~File()
 {
-    /*
-     * If we opened the file (name != 0), then we should close it
-     * as well.
-     */
-    if (name != 0) {
-	close();
-    }
+  /*
+   * If we opened the file (name != 0), then we should close it
+   * as well.
+   */
+  if (name != 0) {
+    close();
+  }
 
-    free(buffer);
+  free(buffer);
 }
 
-int
+  int
 File::close()
 {
-    int status = fp ? fclose(fp) : 0;
+  int status = fp ? fclose(fp) : 0;
 
-    fp = 0;
-    if (status != 0) {
-	if (exitOnError != 0) {
-	    perror(name ? name : "");
-	    exit(exitOnError);
-	}
+  fp = 0;
+  if (status != 0) {
+    if (exitOnError != 0) {
+      perror(name ? name : "");
+      exit(exitOnError);
     }
-    return status;
+  }
+  return status;
 }
 
-Boolean
+  Boolean
 File::reopen(const char *newName, const char *mode)
 {
-    /*
-     * If we opened the file (name != 0), then we should close it
-     * as well.
-     */
-    if (name != 0) {
-	close();
+  /*
+   * If we opened the file (name != 0), then we should close it
+   * as well.
+   */
+  if (name != 0) {
+    close();
+  }
+
+  /*
+   * Open new file as in File::File()
+   */
+  name = newName;
+
+  fp = fopen(name, mode);
+
+  if (fp == 0) {
+    if (exitOnError) {
+      perror(name);
+      exit(exitOnError);
     }
 
-    /*
-     * Open new file as in File::File()
-     */
-    name = newName;
+    return false;
+  }
 
-    fp = fopen(name, mode);
-
-    if (fp == 0) {
-	if (exitOnError) {
-	    perror(name);
-	    exit(exitOnError);
-	}
-
-	return false;
-    }
-
-    return true;
+  return true;
 }
 
-Boolean
+  Boolean
 File::reopen(const char *mode)
 {
-    if (fp == 0) {
-    	return false;
-    }
+  if (fp == 0) {
+    return false;
+  }
 
-    if (fflush(fp) != 0) {
-	if (exitOnError != 0) {
-	    perror(name ? name : "");
-	    exit(exitOnError);
-	}
+  if (fflush(fp) != 0) {
+    if (exitOnError != 0) {
+      perror(name ? name : "");
+      exit(exitOnError);
     }
+  }
 
-    FILE *fpNew = fdopen(fileno(fp), mode);
+  FILE *fpNew = fdopen(fileno(fp), mode);
 
-    if (fpNew == 0) {
-    	return false;
-    } else {
-    	// XXX: we can't fclose(fp), so the old stream object becomes garbage
-	fp = fpNew;
-	return true;
-    }
+  if (fpNew == 0) {
+    return false;
+  } else {
+    // XXX: we can't fclose(fp), so the old stream object becomes garbage
+    fp = fpNew;
+    return true;
+  }
 }
 
-char *
+  char *
 File::getline()
 {
-    if (reuseBuffer) {
-	reuseBuffer = false;
-	return buffer;
+  if (reuseBuffer) {
+    reuseBuffer = false;
+    return buffer;
+  }
+
+  while (1) {
+
+    unsigned bufOffset = 0;
+    Boolean lineDone = false;
+
+    do {
+      buffer[bufLen-1] = 'X';	// check for buffer overflow
+
+      if (fgets(buffer + bufOffset, bufLen - bufOffset, fp) == 0) {
+        if (bufOffset == 0) {
+          return 0;
+        } else {
+          buffer[bufOffset] = '\0';
+          lineDone = true;
+        }
+      } 
+
+      // assume bufLen >= 2 !!
+      if (buffer[bufLen-1] == '\0' && buffer[bufLen-2] != '\n') {
+        /*
+         * enlarge buffer
+         */
+        bufOffset = bufLen - 1;
+        bufLen *= 2;
+        buffer = (char *)realloc(buffer, bufLen);
+        assert(buffer != 0);
+      } else {
+        lineDone = true;
+      }
+    } while (!lineDone);
+
+    lineno ++;
+
+    /*
+     * skip entirely blank lines
+     */
+    register const char *p = buffer;
+    while (*p && isspace(*p)) p++;
+    if (*p == '\0') {
+      continue;
     }
 
-    while (1) {
-
-	unsigned bufOffset = 0;
-	Boolean lineDone = false;
-
-	do {
-	    buffer[bufLen-1] = 'X';	// check for buffer overflow
-
-	    if (fgets(buffer + bufOffset, bufLen - bufOffset, fp) == 0) {
-		if (bufOffset == 0) {
-		    return 0;
-		} else {
-		    buffer[bufOffset] = '\0';
-		    lineDone = true;
-		}
-	    } 
-
-	    // assume bufLen >= 2 !!
-	    if (buffer[bufLen-1] == '\0' && buffer[bufLen-2] != '\n') {
-		/*
- 		 * enlarge buffer
-		 */
-		bufOffset = bufLen - 1;
-		bufLen *= 2;
-		buffer = (char *)realloc(buffer, bufLen);
-		assert(buffer != 0);
-	    } else {
-		lineDone = true;
-	    }
-	} while (!lineDone);
-
-	lineno ++;
-
-	/*
-	 * skip entirely blank lines
-	 */
-	register const char *p = buffer;
-	while (*p && isspace(*p)) p++;
-	if (*p == '\0') {
-	    continue;
-	}
-
-	/*
-	 * skip comment lines (started with double '#')
-	 */
-	if (skipComments && buffer[0] == '#' && buffer[1] == '#') {
-	    continue;
-	}
-
-	reuseBuffer = false;
-	return buffer;
+    /*
+     * skip comment lines (started with double '#')
+     */
+    if (skipComments && buffer[0] == '#' && buffer[1] == '#') {
+      continue;
     }
+
+    reuseBuffer = false;
+    return buffer;
+  }
 }
 
-void
+  void
 File::ungetline()
 {
-    reuseBuffer = true;
+  reuseBuffer = true;
 }
 
-ostream &
+  ostream &
 File::position(ostream &stream)
 {
-    if (name) {
-	stream << name << ": ";
-    }
-    return stream << "line " << lineno << ": ";
+  if (name) {
+    stream << name << ": ";
+  }
+  return stream << "line " << lineno << ": ";
 }
 
-ostream &
+  ostream &
 File::offset(ostream &stream)
 {
-    if (name) {
-	stream << name << ": ";
-    }
-    return stream << "offset " << ftello(fp) << ": ";
+  if (name) {
+    stream << name << ": ";
+  }
+  return stream << "offset " << ftello(fp) << ": ";
 }
